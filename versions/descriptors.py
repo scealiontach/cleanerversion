@@ -9,6 +9,13 @@ from django.utils.functional import cached_property
 
 from versions.util import get_utc_now
 
+import threading
+
+# we are manipulating class definitions in this module, which can introduce threading issues
+# this is not the most elegant possible solution, but it works.
+# this is the re-entrant lock governing the manipulations
+__threading_lock=threading.Lock()
+
 
 def matches_querytime(instance, querytime):
     """
@@ -361,25 +368,31 @@ def create_versioned_forward_many_to_many_manager(superclass, rel, reverse=None)
                 """
                 This function adds an object at a certain point in time (timestamp)
                 """
-
+                
                 # First off, define the new constructor
                 def _through_init(self, *args, **kwargs):
                     super(self.__class__, self).__init__(*args, **kwargs)
                     self.version_birth_date = timestamp
                     self.version_start_date = timestamp
 
-                # Through-classes have an empty constructor, so it can easily be overwritten when needed;
-                # This is not the default case, so the overwrite only takes place when we "modify the past"
-                self.through.__init_backup__ = self.through.__init__
-                self.through.__init__ = _through_init
-
-                # Do the add operation
-                self.add(*objs)
-
-                # Remove the constructor again (by replacing it with the original empty constructor)
-                self.through.__init__ = self.through.__init_backup__
-                del self.through.__init_backup__
-
+                # acquire lock here, not great it slows things down a tad and essentially makes additions linear
+                __threading_lock.acquire()
+                try:
+                    # Through-classes have an empty constructor, so it can easily be overwritten when needed;
+                    # This is not the default case, so the overwrite only takes place when we "modify the past"
+                    self.through.__init_backup__ = self.through.__init__
+                    self.through.__init__ = _through_init
+                    
+                    # Do the add operation
+                    self.add(*objs)
+                    
+                    # Remove the constructor again (by replacing it with the original empty constructor)
+                    
+                    self.through.__init__ = self.through.__init_backup__
+                    del self.through.__init_backup__
+                finally:
+                    __threading_lock.release()
+                
             add_at.alters_data = True
 
         if 'remove' in dir(many_related_manager_klass):
