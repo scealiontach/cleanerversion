@@ -14,7 +14,7 @@ import threading
 # we are manipulating class definitions in this module, which can introduce threading issues
 # this is not the most elegant possible solution, but it works.
 # this is the re-entrant lock governing the manipulations
-__threading_lock=threading.Lock()
+threading_lock=threading.Lock()
 
 
 def matches_querytime(instance, querytime):
@@ -376,7 +376,7 @@ def create_versioned_forward_many_to_many_manager(superclass, rel, reverse=None)
                     self.version_start_date = timestamp
 
                 # acquire lock here, not great it slows things down a tad and essentially makes additions linear
-                __threading_lock.acquire()
+                threading_lock.acquire()
                 try:
                     # Through-classes have an empty constructor, so it can easily be overwritten when needed;
                     # This is not the default case, so the overwrite only takes place when we "modify the past"
@@ -391,7 +391,7 @@ def create_versioned_forward_many_to_many_manager(superclass, rel, reverse=None)
                     self.through.__init__ = self.through.__init_backup__
                     del self.through.__init_backup__
                 finally:
-                    __threading_lock.release()
+                    threading_lock.release()
                 
             add_at.alters_data = True
 
