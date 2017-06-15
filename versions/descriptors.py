@@ -305,7 +305,9 @@ def create_versioned_forward_many_to_many_manager(superclass, rel, reverse=None)
             """
             queryset = super(VersionedManyRelatedManager, self).get_queryset()
             if hasattr(queryset, 'querytime'):
-                if self.instance._querytime.active and self.instance._querytime != queryset.querytime:
+                if not hasattr(self.instance, '_querytime'):
+                    queryset = queryset.current
+                elif self.instance._querytime.active and self.instance._querytime != queryset.querytime:
                     queryset = queryset.as_of(self.instance._querytime.time)
             return queryset
 
